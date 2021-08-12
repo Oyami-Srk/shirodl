@@ -1,0 +1,21 @@
+[package]
+name = "shirodl"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = "^0.11"
+blake3 = "1.0.0"
+async-std = "1.9.0"
+tokio = { version = "1.9.0", features = ["full"] }
+
+[dev-dependencies]
+clap = { version = "3.0.0-beta.2", features = ["suggestions", "color", "derive"]}
+
+[lib]
+name = "shirodl"
+
+[[example]]
+name = "shirodl"
