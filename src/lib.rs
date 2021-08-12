@@ -79,6 +79,20 @@ pub enum Error {
     HashingErrorWhenRename,
 }
 
+impl Error {
+    pub fn ignorable(&self) -> bool {
+        match self {
+            Self::DifferentFileExistedWhenRename => true,
+            Self::FileExistedAsFolderWhenRename => true,
+            Self::HashingErrorWhenRename => true,
+            Self::IoErrorWhenRename(_) => true,
+            Self::UrlCannotDownload => true,
+            Self::FileIsNotBinary => true,
+            _ => false,
+        }
+    }
+}
+
 impl From<HttpError> for Error {
     fn from(err: HttpError) -> Self {
         Self::HttpError(err)

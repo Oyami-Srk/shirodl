@@ -91,7 +91,17 @@ fn main() {
             downloader.append_task(s.to_string(), PathBuf::from("."), None);
         });
     let failed = downloader.download();
-    for f in failed {
+    let failed_unignorable: Vec<_> = failed.iter().filter(|v| !v.err.ignorable()).collect();
+    println!("Download Complete!");
+    if failed.len() != 0 {
+        println!(
+            "{} Failed, {} Ignorable, {} Unignorable.",
+            failed.len(),
+            failed.len() - failed_unignorable.len(),
+            failed_unignorable.len()
+        );
+    }
+    for f in failed_unignorable {
         println!(
             "[FAILED][{:?}] {} -> {}",
             f.err,
