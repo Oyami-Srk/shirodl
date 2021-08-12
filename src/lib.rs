@@ -1,7 +1,7 @@
 #[cfg(test)]
 #[allow(dead_code, unused)]
 mod tests {
-    use crate::shirodl::*;
+    use crate::Downloader;
     use reqwest::Url;
     use std::path::{Path, PathBuf};
 
@@ -12,7 +12,7 @@ mod tests {
         dler.set_destination(PathBuf::from("."));
         dler.set_hash_check(true);
         dler.append_task(
-            "https://pbs.twimg.com/media/E8SpfWfUUAMrV3r.jpg?name=orig".to_string(),
+            "https://avatars.githubusercontent.com/u/6939913?s=48&v=4".to_string(),
             PathBuf::from("."),
             None,
         );
