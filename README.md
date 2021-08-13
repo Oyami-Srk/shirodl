@@ -1,4 +1,6 @@
 # shirodl
+[![Crates.io](https://img.shields.io/crates/v/shirodl.svg)](https://crates.io/crates/shirodl)
+
 ShiroDL Async Download Library for Massive Batch of Urls Downloading
 
 ## Install
