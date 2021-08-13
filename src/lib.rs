@@ -16,7 +16,7 @@ mod tests {
             PathBuf::from("."),
             None,
         );
-        let result = dler.download();
+        let result = dler.download(|_, _, _, _| {});
         for r in result {
             println!("Failed: {}, due to {:?}", r.url, r.err);
         }
@@ -29,7 +29,7 @@ use reqwest::header::{HeaderMap, HeaderValue, IntoHeaderName};
 use reqwest::{Client, Error as HttpError, Url};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::Semaphore;
 
@@ -45,7 +45,6 @@ pub struct Downloader {
     timeout: Option<Duration>,
     headers: HeaderMap,
     hash_check: bool,
-    progressbar: bool,
     only_binary: bool,
     auto_rename: bool,
 }
@@ -89,6 +88,35 @@ impl Error {
             Self::UrlCannotDownload => true,
             Self::FileIsNotBinary => true,
             _ => false,
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::FileExisted => write!(f, "File Existed"),
+            Error::DifferentFileExisted => write!(f, "Different File Existed"),
+            Error::DifferentFileExistedWhenRename => {
+                write!(f, "Different File Existed When Rename")
+            }
+            Error::FileExistedAsFolder => write!(f, "File Existed As Folder"),
+            Error::FileExistedAsFolderWhenRename => write!(f, "File Existed As Folder When Rename"),
+            Error::NoPermissionToWrite => write!(f, "No Permission To Write"),
+            Error::FailedToCreateFolder => write!(f, "Failed To Create Folder"),
+            Error::FolderExistedAsFile => write!(f, "Folder Existed As File"),
+            Error::FileIsNotBinary => write!(f, "File Is Not Binary"),
+            Error::ResourceNotFound => write!(f, "404 Resource Not Found"),
+            Error::HttpError(http) => write!(f, "HTTP Error: {}", http.to_string()),
+            Error::UrlIllegal => write!(f, "Url Illegal"),
+            Error::UrlCannotDownload => write!(f, "Url Cannot Be Downloaded"),
+            Error::RequestNotOK(status_code) => {
+                write!(f, "Request Not OK with Code: {}", status_code)
+            }
+            Error::IoError(e) => write!(f, "Io Error: {}", e),
+            Error::IoErrorWhenRename(e) => write!(f, "Io Error When Rename: {}", e),
+            Error::HashingError => write!(f, "Hashing Error"),
+            Error::HashingErrorWhenRename => write!(f, "Hashing Error When Rename"),
         }
     }
 }
@@ -252,10 +280,9 @@ impl Downloader {
         Self {
             list: vec![],
             folder: Default::default(),
-            timeout: None,
+            timeout: Some(Duration::from_secs(10)),
             headers: HeaderMap::new(),
             hash_check: false,
-            progressbar: true,
             only_binary: true,
             auto_rename: true,
         }
@@ -275,10 +302,6 @@ impl Downloader {
 
     pub fn set_binary_only(&mut self, only_binary: bool) {
         self.only_binary = only_binary;
-    }
-
-    pub fn set_progressbar(&mut self, progressbar: bool) {
-        self.progressbar = progressbar;
     }
 
     pub fn set_auto_rename(&mut self, auto_rename: bool) {
@@ -309,7 +332,10 @@ impl Downloader {
         self.headers.append(key, value.into());
     }
 
-    pub fn download(self) -> Vec<DownloadFailed> {
+    pub fn download<F: 'static>(self, callback: F) -> Vec<DownloadFailed>
+    where
+        F: Fn(&str, &PathBuf, &Option<String>, Option<&Error>) + std::marker::Send,
+    {
         let client = Client::builder().default_headers(self.headers);
         let client = if let Some(timeout) = self.timeout {
             client.timeout(timeout)
@@ -332,6 +358,7 @@ impl Downloader {
             panic!("Working Folder Existed as File.");
         }
         let limits = Arc::new(Semaphore::new(10)); // limit the tasks
+        let callback = Arc::new(Mutex::new(callback));
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let jobs: Vec<_> = self
@@ -345,6 +372,7 @@ impl Downloader {
                 let workdir = workdir.clone();
                 let path = workdir.join(&t.path);
                 let permit = Arc::clone(&limits).acquire_owned();
+                let callback = Arc::clone(&callback);
                 rt.spawn(async move {
                     let _ = permit.await.unwrap(); // for limiting tasks
                     let result = Self::dl_worker(
@@ -357,7 +385,9 @@ impl Downloader {
                         auto_rename,
                     )
                     .await;
-                    if let Err(e) = result {
+                    let callback = &*callback.lock().unwrap();
+                    let r = if let Err(e) = result {
+                        callback(&t.url, &path, &t.filename, Some(&e));
                         Some(DownloadFailed {
                             url: t.url,
                             path,
@@ -365,8 +395,10 @@ impl Downloader {
                             err: e,
                         })
                     } else {
+                        callback(&t.url, &path, &t.filename, None);
                         None
-                    }
+                    };
+                    r
                 })
             })
             .collect();

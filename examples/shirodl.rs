@@ -1,10 +1,15 @@
 #![allow(unused)]
 use clap::{Clap, ValueHint};
+use console::{style, Emoji, Style, Term};
+use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::header::{HeaderName, HeaderValue};
 use shirodl::{DownloadFailed, Downloader};
 use std::io;
 use std::io::Read;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use std::sync::{mpsc, Arc};
+use std::thread;
 use std::time::Duration;
 
 #[derive(Clap)]
@@ -21,7 +26,7 @@ struct Opts {
     #[clap(short, long, value_hint=ValueHint::DirPath)]
     destination: Option<PathBuf>,
     #[clap(long)]
-    hash: bool,
+    no_hash: bool,
     #[clap(short, long)]
     timeout: Option<u64>,
 }
@@ -70,9 +75,9 @@ fn main() {
     if let Some(timeout) = opts.timeout {
         downloader.set_timeout(Duration::from_micros(timeout));
     }
-    downloader.set_hash_check(opts.hash);
+    downloader.set_hash_check(!opts.no_hash);
     // filtering url
-    inputs
+    let inputs = inputs
         .iter()
         .filter(|l| {
             let url = if let Ok(url) = reqwest::Url::parse(l) {
@@ -86,11 +91,59 @@ fn main() {
                 false
             }
         })
-        .for_each(|s| {
-            // todo: Running path generator
-            downloader.append_task(s.to_string(), PathBuf::from("."), None);
-        });
-    let failed = downloader.download();
+        .collect::<Vec<_>>();
+    inputs.iter().for_each(|s| {
+        // todo: Running path generator
+        downloader.append_task(s.to_string(), PathBuf::from("."), None);
+    });
+    let bar = ProgressBar::new(inputs.len() as u64);
+    bar.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "{spinner}[{elapsed_precise}][{eta}] {wide_bar:.cyan/blue} [{pos}/{len} - {percent}%] {msg}",
+            )
+            .progress_chars("##-"),
+    );
+    let (sender, receiver) = mpsc::channel();
+    let retain_sender = sender.clone();
+    bar.enable_steady_tick(200);
+    let display_thread = thread::spawn(move || loop {
+        let msg = receiver.recv().unwrap();
+        if let Some(s) = msg {
+            bar.println(s);
+            bar.inc(1);
+        } else {
+            bar.finish();
+            break;
+        }
+    });
+    let failed = downloader.download(move |url, path, filename, err| {
+        let msg_style = if let Some(e) = err {
+            if e.ignorable() {
+                Style::new().black().bright()
+            } else {
+                Style::new().red().bright().bold()
+            }
+        } else {
+            Style::new().green()
+        };
+        let msg = format!(
+            "{} {}",
+            if err.is_none() {
+                Emoji::new("✔️", "Done")
+            } else {
+                Emoji::new("❌️", "Failed")
+            },
+            if err.is_none() {
+                url.to_string()
+            } else {
+                format!("{} [{}]", url, err.unwrap())
+            }
+        );
+        sender.send(Some(msg_style.apply_to(msg).to_string()));
+    });
+    retain_sender.send(None);
+    display_thread.join().unwrap();
     let failed_unignorable: Vec<_> = failed.iter().filter(|v| !v.err.ignorable()).collect();
     println!("Download Complete!");
     if failed.len() != 0 {
@@ -101,6 +154,7 @@ fn main() {
             failed_unignorable.len()
         );
     }
+    /*
     for f in failed_unignorable {
         println!(
             "[FAILED][{:?}] {} -> {}",
@@ -108,7 +162,7 @@ fn main() {
             f.url,
             f.path.to_str().unwrap_or("#CannotBeFormatted#")
         );
-    }
+    }*/
 }
 
 fn is_existed_as_file(v: &str) -> Result<(), String> {

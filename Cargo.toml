@@ -14,6 +14,8 @@ tokio = { version = "1.9.0", features = ["full"] }
 
 [dev-dependencies]
 clap = { version = "3.0.0-beta.2", features = ["suggestions", "color", "derive"]}
+indicatif = "0.16.2"
+console = "0.14.1"
 
 [lib]
 name = "shirodl"
