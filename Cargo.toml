@@ -1,11 +1,20 @@
 [package]
 name = "shirodl"
+description = "A async download library for massive batch of urls downloading."
+license-file = "LICENSE"
+readme = "README.md"
+repository = "https://github.com/Oyami-Srk/shirodl"
+homepage = "https://github.com/Oyami-Srk/shirodl"
 version = "0.1.1"
 edition = "2018"
 include = [
     "**/*.rs",
     "Cargo.toml",
+    "LICENSE",
+    "README.md",
 ]
+keywords = ["download", "async", "tool"]
+categories = ["command-line-utilities", "web-programming::http-client", "asynchronous"]
 
 [dependencies]
 reqwest = "^0.11"
