@@ -19,15 +19,18 @@ use std::time::Duration;
     author = "Shiroko <hhx.xxm@gmail.com>"
 )]
 struct Opts {
-    #[clap(short, long, value_hint=ValueHint::FilePath, validator(is_existed_as_file))]
+    #[clap(short, long, value_hint=ValueHint::FilePath, validator(is_existed_as_file), about="List of urls.")]
     input: Option<PathBuf>,
-    #[clap(short, long)]
+    #[clap(short, long, about = "Set headers, usage: --header a=b,c=d")]
     header: Option<String>,
-    #[clap(short, long, value_hint=ValueHint::DirPath)]
+    #[clap(short, long, value_hint=ValueHint::DirPath, about="Download destination folder.")]
     destination: Option<PathBuf>,
-    #[clap(long)]
+    #[clap(
+        long,
+        about = "No hash check when file already existed. Not affect hashing when auto rename."
+    )]
     no_hash: bool,
-    #[clap(short, long)]
+    #[clap(short, long, about = "Timeout in microsecond.")]
     timeout: Option<u64>,
 }
 
