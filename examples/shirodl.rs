@@ -3,7 +3,7 @@ use clap::{Clap, ValueHint};
 use console::{style, Emoji, Style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::header::{HeaderName, HeaderValue};
-use shirodl::{DownloadFailed, Downloader};
+use shirodl::{DownloadFailed, Downloader, ProxyType};
 use std::io;
 use std::io::Read;
 use std::ops::Deref;
@@ -32,6 +32,12 @@ struct Opts {
     no_hash: bool,
     #[clap(short, long, about = "Timeout in microsecond.")]
     timeout: Option<u64>,
+    #[clap(
+        short,
+        long,
+        about = "Set Proxy, `no` means not set proxy from environment variables."
+    )]
+    proxy: Option<String>,
 }
 
 fn main() {
@@ -79,6 +85,26 @@ fn main() {
         downloader.set_timeout(Duration::from_micros(timeout));
     }
     downloader.set_hash_check(!opts.no_hash);
+    if let Some(proxy) = opts.proxy {
+        if proxy.to_lowercase() != "no" {
+            downloader.add_proxy(ProxyType::All, proxy).unwrap();
+        }
+    } else {
+        if std::env::var_os("no_proxy")
+            .or(std::env::var_os("NO_PROXY"))
+            .is_none()
+        {
+            if let Some(proxy) = get_proxy_from_env(ProxyType::Http) {
+                downloader.add_proxy(ProxyType::Http, proxy).unwrap();
+            }
+            if let Some(proxy) = get_proxy_from_env(ProxyType::Https) {
+                downloader.add_proxy(ProxyType::Https, proxy).unwrap();
+            }
+            if let Some(proxy) = get_proxy_from_env(ProxyType::All) {
+                downloader.add_proxy(ProxyType::All, proxy).unwrap();
+            }
+        }
+    }
     // filtering url
     let inputs = inputs
         .iter()
@@ -120,31 +146,33 @@ fn main() {
             break;
         }
     });
-    let failed = downloader.download(move |url, path, filename, err| {
-        let msg_style = if let Some(e) = err {
-            if e.ignorable() {
-                Style::new().black().bright()
+    let failed = downloader
+        .download(move |url, path, filename, err| {
+            let msg_style = if let Some(e) = err {
+                if e.ignorable() {
+                    Style::new().black().bright()
+                } else {
+                    Style::new().red().bright().bold()
+                }
             } else {
-                Style::new().red().bright().bold()
-            }
-        } else {
-            Style::new().green()
-        };
-        let msg = format!(
-            "{} {}",
-            if err.is_none() {
-                Emoji::new("✔️", "Done")
-            } else {
-                Emoji::new("❌️", "Failed")
-            },
-            if err.is_none() {
-                url.to_string()
-            } else {
-                format!("{} [{}]", url, err.unwrap())
-            }
-        );
-        sender.send(Some(msg_style.apply_to(msg).to_string()));
-    });
+                Style::new().green()
+            };
+            let msg = format!(
+                "{} {}",
+                if err.is_none() {
+                    Emoji::new("✔️", "Done")
+                } else {
+                    Emoji::new("❌️", "Failed")
+                },
+                if err.is_none() {
+                    url.to_string()
+                } else {
+                    format!("{} [{}]", url, err.unwrap())
+                }
+            );
+            sender.send(Some(msg_style.apply_to(msg).to_string()));
+        })
+        .unwrap();
     retain_sender.send(None);
     display_thread.join().unwrap();
     let failed_unignorable: Vec<_> = failed.iter().filter(|v| !v.err.ignorable()).collect();
@@ -179,4 +207,15 @@ fn is_existed_as_file(v: &str) -> Result<(), String> {
             Err("Not Exists".to_string())
         }
     }
+}
+
+fn get_proxy_from_env(proxy_type: ProxyType) -> Option<String> {
+    let lower_case_env_param = match proxy_type {
+        ProxyType::Http => "http_proxy",
+        ProxyType::Https => "https_proxy",
+        ProxyType::All => "all_proxy",
+    };
+    std::env::var_os(lower_case_env_param)
+        .or(std::env::var_os(lower_case_env_param.to_uppercase()))
+        .map(|v| v.to_string_lossy().to_string())
 }

@@ -16,7 +16,7 @@ mod tests {
             PathBuf::from("."),
             None,
         );
-        let result = dler.download(|_, _, _, _| {});
+        let result = dler.download(|_, _, _, _| {}).unwrap();
         for r in result {
             println!("Failed: {}, due to {:?}", r.url, r.err);
         }
@@ -26,7 +26,7 @@ mod tests {
 use blake3::Hasher;
 // use content_inspector;
 use reqwest::header::{HeaderMap, HeaderValue, IntoHeaderName};
-use reqwest::{Client, Error as HttpError, Url};
+use reqwest::{Client, Error as HttpError, Proxy, Url};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -39,6 +39,12 @@ struct DownloadParams {
     filename: Option<String>,
 }
 
+pub enum ProxyType {
+    Http,
+    Https,
+    All,
+}
+
 pub struct Downloader {
     list: Vec<DownloadParams>,
     folder: PathBuf,
@@ -47,6 +53,7 @@ pub struct Downloader {
     hash_check: bool,
     only_binary: bool,
     auto_rename: bool,
+    proxies: Vec<Proxy>,
 }
 
 pub struct DownloadFailed {
@@ -76,6 +83,7 @@ pub enum Error {
     IoErrorWhenRename(String),
     HashingError,
     HashingErrorWhenRename,
+    ProxyError(String),
 }
 
 impl Error {
@@ -117,6 +125,7 @@ impl std::fmt::Display for Error {
             Error::IoErrorWhenRename(e) => write!(f, "Io Error When Rename: {}", e),
             Error::HashingError => write!(f, "Hashing Error"),
             Error::HashingErrorWhenRename => write!(f, "Hashing Error When Rename"),
+            Error::ProxyError(e) => write!(f, "Proxy Error: {}", e),
         }
     }
 }
@@ -285,6 +294,7 @@ impl Downloader {
             hash_check: false,
             only_binary: true,
             auto_rename: true,
+            proxies: Vec::new(),
         }
     }
 
@@ -306,6 +316,17 @@ impl Downloader {
 
     pub fn set_auto_rename(&mut self, auto_rename: bool) {
         self.auto_rename = auto_rename;
+    }
+
+    pub fn add_proxy(&mut self, proxy_type: ProxyType, proxy: String) -> Result<(), Error> {
+        let proxy = match proxy_type {
+            ProxyType::Http => Proxy::http(proxy),
+            ProxyType::Https => Proxy::https(proxy),
+            ProxyType::All => Proxy::all(proxy),
+        }
+        .map_err(|e| Error::ProxyError(e.to_string()))?;
+        self.proxies.push(proxy);
+        Ok(())
     }
 
     // path is relative to Downloader global folder
@@ -332,7 +353,7 @@ impl Downloader {
         self.headers.append(key, value.into());
     }
 
-    pub fn download<F: 'static>(self, callback: F) -> Vec<DownloadFailed>
+    pub fn download<F: 'static>(self, callback: F) -> Result<Vec<DownloadFailed>, Error>
     where
         F: Fn(&str, &PathBuf, &Option<String>, Option<&Error>) + std::marker::Send,
     {
@@ -341,21 +362,20 @@ impl Downloader {
             client.timeout(timeout)
         } else {
             client
-        }
-        .build();
-        let client = if let Err(e) = client {
-            panic!("Cannot build HTTP Client, {}", e.to_string());
-        } else {
-            client.unwrap()
         };
+        let client = self
+            .proxies
+            .into_iter()
+            .fold(client, |client, proxy| client.proxy(proxy));
+        let client = client.build().map_err(|e| Error::HttpError(e))?;
         let hash_check = self.hash_check;
         let only_binary = self.only_binary;
         let auto_rename = self.auto_rename;
         let workdir = self.folder;
         if !workdir.exists() {
-            fs::create_dir_all(&workdir).unwrap();
+            fs::create_dir_all(&workdir).map_err(|_| Error::FailedToCreateFolder)?;
         } else if workdir.is_file() {
-            panic!("Working Folder Existed as File.");
+            return Err(Error::FolderExistedAsFile);
         }
         let limits = Arc::new(Semaphore::new(10)); // limit the tasks
         let callback = Arc::new(Mutex::new(callback));
@@ -412,6 +432,6 @@ impl Downloader {
             }
         };
         rt.block_on(downloader);
-        result
+        Ok(result)
     }
 }
