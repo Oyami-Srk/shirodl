@@ -55,6 +55,7 @@ pub struct Downloader {
     auto_rename: bool,
     proxies: Vec<Proxy>,
     task_count: usize,
+    disable_default_proxy: bool,
 }
 
 pub struct DownloadFailed {
@@ -296,6 +297,7 @@ impl Downloader {
             only_binary: true,
             auto_rename: true,
             proxies: Vec::new(),
+            disable_default_proxy: false,
             task_count: 8,
         }
     }
@@ -329,6 +331,14 @@ impl Downloader {
         .map_err(|e| Error::ProxyError(e.to_string()))?;
         self.proxies.push(proxy);
         Ok(())
+    }
+
+    pub fn disable_default_proxy(&mut self) {
+        self.disable_default_proxy = true;
+    }
+
+    pub fn enable_default_proxy(&mut self) {
+        self.disable_default_proxy = false;
     }
 
     pub fn set_task_count(&mut self, task_count: usize) {
@@ -373,6 +383,11 @@ impl Downloader {
             .proxies
             .into_iter()
             .fold(client, |client, proxy| client.proxy(proxy));
+        let client = if self.disable_default_proxy {
+            client.no_proxy()
+        } else {
+            client
+        };
         let client = client.build().map_err(|e| Error::HttpError(e))?;
         let hash_check = self.hash_check;
         let only_binary = self.only_binary;

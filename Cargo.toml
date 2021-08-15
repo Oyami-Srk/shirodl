@@ -17,7 +17,7 @@ keywords = ["download", "async", "tool"]
 categories = ["command-line-utilities", "web-programming::http-client", "asynchronous"]
 
 [dependencies]
-reqwest = "^0.11"
+reqwest = { version = "^0.11", features = ["socks"]}
 blake3 = "1.0.0"
 async-std = "1.9.0"
 tokio = { version = "1.9.0", features = ["full"] }

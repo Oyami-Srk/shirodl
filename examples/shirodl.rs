@@ -44,7 +44,10 @@ struct Opts {
 
 fn main() {
     let opts = Opts::parse();
-    println!("ShiroDL Program Version 0.1.0 <hhx.xxm@gmail.com>");
+    println!(
+        "ShiroDL Program Version {} By Shiroko <hhx.xxm@gmail.com>",
+        env!("CARGO_PKG_VERSION")
+    );
     let mut downloader = Downloader::new();
     // parse header
     if let Some(header) = opts.header {
@@ -90,22 +93,10 @@ fn main() {
     downloader.set_task_count(opts.jobs);
     if let Some(proxy) = opts.proxy {
         if proxy.to_lowercase() != "no" {
+            println!("Set Proxy {} for all.", proxy);
             downloader.add_proxy(ProxyType::All, proxy).unwrap();
-        }
-    } else {
-        if std::env::var_os("no_proxy")
-            .or(std::env::var_os("NO_PROXY"))
-            .is_none()
-        {
-            if let Some(proxy) = get_proxy_from_env(ProxyType::Http) {
-                downloader.add_proxy(ProxyType::Http, proxy).unwrap();
-            }
-            if let Some(proxy) = get_proxy_from_env(ProxyType::Https) {
-                downloader.add_proxy(ProxyType::Https, proxy).unwrap();
-            }
-            if let Some(proxy) = get_proxy_from_env(ProxyType::All) {
-                downloader.add_proxy(ProxyType::All, proxy).unwrap();
-            }
+        } else {
+            downloader.disable_default_proxy();
         }
     }
     // filtering url
@@ -210,15 +201,4 @@ fn is_existed_as_file(v: &str) -> Result<(), String> {
             Err("Not Exists".to_string())
         }
     }
-}
-
-fn get_proxy_from_env(proxy_type: ProxyType) -> Option<String> {
-    let lower_case_env_param = match proxy_type {
-        ProxyType::Http => "http_proxy",
-        ProxyType::Https => "https_proxy",
-        ProxyType::All => "all_proxy",
-    };
-    std::env::var_os(lower_case_env_param)
-        .or(std::env::var_os(lower_case_env_param.to_uppercase()))
-        .map(|v| v.to_string_lossy().to_string())
 }
