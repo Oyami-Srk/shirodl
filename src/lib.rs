@@ -54,6 +54,7 @@ pub struct Downloader {
     only_binary: bool,
     auto_rename: bool,
     proxies: Vec<Proxy>,
+    task_count: usize,
 }
 
 pub struct DownloadFailed {
@@ -295,6 +296,7 @@ impl Downloader {
             only_binary: true,
             auto_rename: true,
             proxies: Vec::new(),
+            task_count: 8,
         }
     }
 
@@ -327,6 +329,10 @@ impl Downloader {
         .map_err(|e| Error::ProxyError(e.to_string()))?;
         self.proxies.push(proxy);
         Ok(())
+    }
+
+    pub fn set_task_count(&mut self, task_count: usize) {
+        self.task_count = task_count;
     }
 
     // path is relative to Downloader global folder
@@ -377,7 +383,7 @@ impl Downloader {
         } else if workdir.is_file() {
             return Err(Error::FolderExistedAsFile);
         }
-        let limits = Arc::new(Semaphore::new(10)); // limit the tasks
+        let limits = Arc::new(Semaphore::new(self.task_count)); // limit the tasks
         let callback = Arc::new(Mutex::new(callback));
 
         let rt = tokio::runtime::Runtime::new().unwrap();

@@ -1,11 +1,11 @@
 [package]
 name = "shirodl"
-description = "A async download library for massive batch of urls downloading."
+description = "An async download library for massive batch of urls downloading."
 license-file = "LICENSE"
 readme = "README.md"
 repository = "https://github.com/Oyami-Srk/shirodl"
 homepage = "https://github.com/Oyami-Srk/shirodl"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2018"
 include = [
     "**/*.rs",

@@ -1,7 +1,7 @@
 # shirodl
 [![Crates.io](https://img.shields.io/crates/v/shirodl.svg)](https://crates.io/crates/shirodl)
 
-ShiroDL Async Download Library for Massive Batch of Urls Downloading
+ShiroDL is an Async Download Library for Massive Batch of Urls Downloading
 
 ## Install
 `cargo install --example shirodl --git https://github.com/Oyami-Srk/shirodl`
