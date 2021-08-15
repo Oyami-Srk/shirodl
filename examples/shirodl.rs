@@ -38,6 +38,8 @@ struct Opts {
         about = "Set Proxy, `no` means not set proxy from environment variables."
     )]
     proxy: Option<String>,
+    #[clap(short, long, about = "Async task count.", default_value = "8")]
+    jobs: usize,
 }
 
 fn main() {
@@ -85,6 +87,7 @@ fn main() {
         downloader.set_timeout(Duration::from_micros(timeout));
     }
     downloader.set_hash_check(!opts.no_hash);
+    downloader.set_task_count(opts.jobs);
     if let Some(proxy) = opts.proxy {
         if proxy.to_lowercase() != "no" {
             downloader.add_proxy(ProxyType::All, proxy).unwrap();
