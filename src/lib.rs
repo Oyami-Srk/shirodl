@@ -406,16 +406,16 @@ impl Downloader {
             .list
             .into_iter()
             .map(|t| {
+                let permit = Arc::clone(&limits).acquire_owned();
                 let client = client.clone();
                 let hash_check = hash_check.clone();
                 let only_binary = only_binary.clone();
                 let auto_rename = auto_rename.clone();
                 let workdir = workdir.clone();
                 let path = workdir.join(&t.path);
-                let permit = Arc::clone(&limits).acquire_owned();
                 let callback = Arc::clone(&callback);
                 rt.spawn(async move {
-                    let _ = permit.await.unwrap(); // for limiting tasks
+                    let permit = permit.await.unwrap(); // for limiting tasks
                     let result = Self::dl_worker(
                         &client,
                         &t.url,
@@ -439,6 +439,7 @@ impl Downloader {
                         callback(&t.url, &path, &t.filename, None);
                         None
                     };
+                    drop(permit);
                     r
                 })
             })
