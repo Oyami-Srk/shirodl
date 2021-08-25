@@ -47,3 +47,7 @@ Notice that currently auto-rename only determinates extensions simply by MIME vi
 Manually check is required but at least it could give you a tip.
 
 `shirodl::Error::ignorable()` is not always ignorable, present errors to users always and leave the decisions to end user.
+
+# Thanks
+This Project is Developmented under wonderful JetBrains IDE.
+[![CLion](./resource/icon_CLion.png)](https://www.jetbrains.com/?from=OmochaOS)
