@@ -13,11 +13,7 @@ use std::thread;
 use std::time::Duration;
 
 #[derive(Clap)]
-#[clap(
-    name = "ShiroDL",
-    version = "0.1.0",
-    author = "Shiroko <hhx.xxm@gmail.com>"
-)]
+#[clap(name = "ShiroDL", version = env!("CARGO_PKG_VERSION"), author = "Shiroko <hhx.xxm@gmail.com>")]
 struct Opts {
     #[clap(short, long, value_hint=ValueHint::FilePath, validator(is_existed_as_file), about="List of urls.")]
     input: Option<PathBuf>,
