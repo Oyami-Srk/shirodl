@@ -1,8 +1,9 @@
 #![allow(unused)]
-use clap::{Clap, ValueHint};
+use clap::{Parser, ValueHint};
 use console::{style, Emoji, Style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::header::{HeaderName, HeaderValue};
+use serde::{Deserialize, Serialize};
 use shirodl::{DownloadFailed, Downloader, ProxyType};
 use std::io;
 use std::io::Read;
@@ -12,7 +13,7 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(name = "ShiroDL", version = env!("CARGO_PKG_VERSION"), author = "Shiroko <hhx.xxm@gmail.com>")]
 struct Opts {
     #[clap(short, long, value_hint=ValueHint::FilePath, validator(is_existed_as_file), about="List of urls.")]
@@ -36,6 +37,19 @@ struct Opts {
     proxy: Option<String>,
     #[clap(short, long, about = "Async task count.", default_value = "8")]
     jobs: usize,
+    #[clap(
+        short,
+        long,
+        about = "Use json format as input. field: `url`, `filename`, `folder`."
+    )]
+    json: bool,
+}
+
+#[derive(Deserialize, Serialize)]
+struct DownloadTask {
+    pub url: String,
+    pub filename: Option<String>,
+    pub folder: Option<String>,
 }
 
 fn main() {
@@ -75,7 +89,33 @@ fn main() {
         std::io::stdin().read_to_string(&mut buffer).unwrap();
         buffer
     };
-    let inputs = inputs.lines().collect::<Vec<&str>>();
+    let tasks = if opts.json {
+        serde_json::from_str(inputs.as_str()).unwrap()
+    } else {
+        let inputs = inputs.lines().collect::<Vec<&str>>();
+        // filtering url
+        inputs
+            .iter()
+            .filter(|l| {
+                let url = if let Ok(url) = reqwest::Url::parse(l) {
+                    url
+                } else {
+                    return false;
+                };
+                if url.scheme() == "http" || url.scheme() == "https" {
+                    true
+                } else {
+                    false
+                }
+            })
+            .map(|v| DownloadTask {
+                url: v.to_string(),
+                folder: None,
+                filename: None,
+            })
+            .collect::<Vec<_>>()
+    };
+
     if let Some(dest) = opts.destination {
         let dest = std::env::current_dir().unwrap().join(dest);
         downloader.set_destination(dest);
@@ -87,6 +127,7 @@ fn main() {
     }
     downloader.set_hash_check(!opts.no_hash);
     downloader.set_task_count(opts.jobs);
+
     if let Some(proxy) = opts.proxy {
         if proxy.to_lowercase() != "no" {
             println!("Set Proxy {} for all.", proxy);
@@ -95,26 +136,16 @@ fn main() {
             downloader.disable_default_proxy();
         }
     }
-    // filtering url
-    let inputs = inputs
-        .iter()
-        .filter(|l| {
-            let url = if let Ok(url) = reqwest::Url::parse(l) {
-                url
-            } else {
-                return false;
-            };
-            if url.scheme() == "http" || url.scheme() == "https" {
-                true
-            } else {
-                false
-            }
-        })
-        .collect::<Vec<_>>();
-    inputs.iter().for_each(|s| {
+
+    tasks.iter().for_each(|v| {
         // todo: Running path generator
-        downloader.append_task(s.to_string(), PathBuf::from("."), None);
+        downloader.append_task(
+            v.url.clone(),
+            PathBuf::from(v.folder.clone().unwrap_or(".".to_string())),
+            v.filename.clone(),
+        )
     });
+
     let bar = ProgressBar::new(inputs.len() as u64);
     bar.set_style(
         ProgressStyle::default_bar()
