@@ -5,6 +5,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::header::{HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use shirodl::{DownloadFailed, Downloader, ProxyType};
+use std::fmt::Write;
 use std::io;
 use std::io::Read;
 use std::ops::Deref;
@@ -43,13 +44,29 @@ struct Opts {
         about = "Use json format as input. field: `url`, `filename`, `folder`."
     )]
     json: bool,
+    #[clap(short, long, about = "Maxium Retry times", default_value = "3")]
+    retry: usize,
+    #[clap(
+        short,
+        long,
+        about = "Save Unignorable failed tasks to json format file."
+    )]
+    save_failed: Option<PathBuf>,
 }
 
 #[derive(Deserialize, Serialize)]
 struct DownloadTask {
     pub url: String,
     pub filename: Option<String>,
-    pub folder: Option<String>,
+    pub folder: Option<PathBuf>,
+}
+
+#[derive(Serialize)]
+struct DownloadFailedSerializable {
+    pub url: String,
+    pub filename: Option<String>,
+    pub folder: Option<PathBuf>,
+    pub error: String,
 }
 
 fn main() {
@@ -141,7 +158,7 @@ fn main() {
         // todo: Running path generator
         downloader.append_task(
             v.url.clone(),
-            PathBuf::from(v.folder.clone().unwrap_or(".".to_string())),
+            v.folder.clone().unwrap_or(".".to_string().into()),
             v.filename.clone(),
         )
     });
@@ -181,9 +198,9 @@ fn main() {
             let msg = format!(
                 "{} {}",
                 if err.is_none() {
-                    Emoji::new("✔️", "Done")
+                    Emoji::new("✔️", "[ Done ]")
                 } else {
-                    Emoji::new("❌️", "Failed")
+                    Emoji::new("❌️", "[Failed]")
                 },
                 if err.is_none() {
                     url.to_string()
@@ -206,15 +223,18 @@ fn main() {
             failed_unignorable.len()
         );
     }
-    /*
-    for f in failed_unignorable {
-        println!(
-            "[FAILED][{:?}] {} -> {}",
-            f.err,
-            f.url,
-            f.path.to_str().unwrap_or("#CannotBeFormatted#")
-        );
-    }*/
+    if let Some(save_failed) = opts.save_failed {
+        let failed = failed_unignorable
+            .iter()
+            .map(|v| DownloadFailedSerializable {
+                url: v.url.clone(),
+                filename: v.filename.clone(),
+                folder: Some(v.path.clone()),
+                error: v.err.to_string(),
+            })
+            .collect::<Vec<DownloadFailedSerializable>>();
+        std::fs::write(save_failed, serde_json::to_string_pretty(&failed).unwrap()).unwrap();
+    }
 }
 
 fn is_existed_as_file(v: &str) -> Result<(), String> {
