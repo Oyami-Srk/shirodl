@@ -146,7 +146,7 @@ fn main() {
         )
     });
 
-    let bar = ProgressBar::new(inputs.len() as u64);
+    let bar = ProgressBar::new(tasks.len() as u64);
     bar.set_style(
         ProgressStyle::default_bar()
             .template(
