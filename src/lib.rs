@@ -56,6 +56,7 @@ pub struct Downloader {
     proxies: Vec<Proxy>,
     task_count: usize,
     disable_default_proxy: bool,
+    retries: usize,
 }
 
 pub struct DownloadFailed {
@@ -299,6 +300,7 @@ impl Downloader {
             proxies: Vec::new(),
             disable_default_proxy: false,
             task_count: 8,
+            retries: 0,
         }
     }
 
@@ -320,6 +322,10 @@ impl Downloader {
 
     pub fn set_auto_rename(&mut self, auto_rename: bool) {
         self.auto_rename = auto_rename;
+    }
+
+    pub fn set_retries_count(&mut self, retries: usize){
+        self.retries = retries;
     }
 
     pub fn add_proxy(&mut self, proxy_type: ProxyType, proxy: String) -> Result<(), Error> {

@@ -144,6 +144,7 @@ fn main() {
     }
     downloader.set_hash_check(!opts.no_hash);
     downloader.set_task_count(opts.jobs);
+    downloader.set_retries_count(opts.retry);
 
     if let Some(proxy) = opts.proxy {
         if proxy.to_lowercase() != "no" {
