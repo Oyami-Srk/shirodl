@@ -17,39 +17,39 @@ use std::time::Duration;
 #[derive(Parser)]
 #[clap(name = "ShiroDL", version = env!("CARGO_PKG_VERSION"), author = "Shiroko <hhx.xxm@gmail.com>")]
 struct Opts {
-    #[clap(short, long, value_hint=ValueHint::FilePath, validator(is_existed_as_file), about="List of urls.")]
+    #[clap(short, long, value_hint=ValueHint::FilePath, validator(is_existed_as_file), help="List of urls.")]
     input: Option<PathBuf>,
-    #[clap(short, long, about = "Set headers, usage: --header a=b,c=d")]
+    #[clap(short, long, help = "Set headers, usage: --header a=b,c=d")]
     header: Option<String>,
-    #[clap(short, long, value_hint=ValueHint::DirPath, about="Download destination folder.")]
+    #[clap(short, long, value_hint=ValueHint::DirPath, help="Download destination folder.")]
     destination: Option<PathBuf>,
     #[clap(
         long,
-        about = "No hash check when file already existed. Not affect hashing when auto rename."
+        help = "No hash check when file already existed. Not affect hashing when auto rename."
     )]
     no_hash: bool,
-    #[clap(short, long, about = "Timeout in microsecond.")]
+    #[clap(short, long, help = "Timeout in microsecond.")]
     timeout: Option<u64>,
     #[clap(
         short,
         long,
-        about = "Set Proxy, `no` means not set proxy from environment variables."
+        help = "Set Proxy, `no` means not set proxy from environment variables."
     )]
     proxy: Option<String>,
-    #[clap(short, long, about = "Async task count.", default_value = "8")]
+    #[clap(short, long, help = "Async task count.", default_value = "8")]
     jobs: usize,
     #[clap(
         short,
         long,
-        about = "Use json format as input. field: `url`, `filename`, `folder`."
+        help = "Use json format as input. field: `url`, `filename`, `folder`."
     )]
     json: bool,
-    #[clap(short, long, about = "Maxium Retry times", default_value = "3")]
+    #[clap(short, long, help = "Maxium Retry times", default_value = "3")]
     retry: usize,
     #[clap(
         short,
         long,
-        about = "Save Unignorable failed tasks to json format file."
+        help = "Save Unignorable failed tasks to json format file."
     )]
     save_failed: Option<PathBuf>,
 }
@@ -157,11 +157,11 @@ fn main() {
 
     tasks.iter().for_each(|v| {
         // todo: Running path generator
-        downloader.append_task(
+        downloader.append_task((
             v.url.clone(),
             v.folder.clone().unwrap_or(".".to_string().into()),
             v.filename.clone(),
-        )
+        ))
     });
 
     let bar = ProgressBar::new(tasks.len() as u64);
@@ -169,12 +169,12 @@ fn main() {
         ProgressStyle::default_bar()
             .template(
                 "{spinner}[{elapsed_precise}][{eta}] {wide_bar:.cyan/blue} [{pos}/{len} - {percent}%] {msg}",
-            )
+            ).unwrap()
             .progress_chars("##-"),
     );
     let (sender, receiver) = mpsc::channel();
     let retain_sender = sender.clone();
-    bar.enable_steady_tick(200);
+    bar.enable_steady_tick(Duration::from_millis(200));
     let display_thread = thread::spawn(move || loop {
         let msg = receiver.recv().unwrap();
         if let Some(s) = msg {

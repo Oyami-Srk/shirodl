@@ -66,6 +66,32 @@ pub struct DownloadFailed {
     pub err: Error,
 }
 
+pub struct DownloadTask {
+    pub url: String,
+    pub path: PathBuf,
+    pub filename: Option<String>,
+}
+
+impl Into<DownloadTask> for DownloadFailed {
+    fn into(self) -> DownloadTask {
+        DownloadTask {
+            url: self.url,
+            path: self.path,
+            filename: self.filename,
+        }
+    }
+}
+
+impl Into<DownloadTask> for (String, PathBuf, Option<String>) {
+    fn into(self) -> DownloadTask {
+        DownloadTask {
+            url: self.0,
+            path: self.1,
+            filename: self.2,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
     FileExisted,
@@ -98,6 +124,21 @@ impl Error {
             Self::IoErrorWhenRename(_) => true,
             Self::UrlCannotDownload => true,
             Self::FileIsNotBinary => true,
+            Self::FileExisted => true,
+            _ => false,
+        }
+    }
+
+    pub fn retriable(&self) -> bool {
+        match self {
+            Self::HttpError(httpError) => {
+                if httpError.is_connect() || httpError.is_timeout() {
+                    true
+                } else {
+                    false
+                }
+            }
+            Self::ProxyError(_) => true,
             _ => false,
         }
     }
@@ -324,7 +365,7 @@ impl Downloader {
         self.auto_rename = auto_rename;
     }
 
-    pub fn set_retries_count(&mut self, retries: usize){
+    pub fn set_retries_count(&mut self, retries: usize) {
         self.retries = retries;
     }
 
@@ -352,7 +393,11 @@ impl Downloader {
     }
 
     // path is relative to Downloader global folder
-    pub fn append_task(&mut self, url: String, path: PathBuf, filename: Option<String>) {
+    pub fn append_task<T: Into<DownloadTask>>(&mut self, task: T) {
+        let task = task.into();
+        let url = task.url;
+        let path = task.path;
+        let filename = task.filename;
         if self
             .list
             .iter()

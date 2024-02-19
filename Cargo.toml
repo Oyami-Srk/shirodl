@@ -25,7 +25,7 @@ tokio = { version = "1.9.0", features = ["full"] }
 
 [dev-dependencies]
 clap = { version = "3.0.0-beta.5", features = ["suggestions", "color", "derive"]}
-indicatif = "0.16.2"
+indicatif = "0.17.5"
 console = "0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "^1.0"
